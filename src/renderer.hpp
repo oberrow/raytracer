@@ -31,6 +31,7 @@ namespace raytracer {
             // For directional lights.
             viewport_coords direction;
         };
+        float shininess = -1;
         color rgbx;
         union {
             struct {
@@ -80,7 +81,7 @@ namespace raytracer {
             color m_bg_color;
             screen_coords conv_canvas_screen(const canvas_coords& coords);
             color trace_ray(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max);
-            float compute_lighting(viewport_coords intersection, glm::vec3 normal);
+            float compute_lighting(viewport_coords intersection, glm::vec3 normal, glm::vec3 camera_distance, float shininess);
             std::pair<float /* t1 */, float /* t2 */> intersect_ray_sphere(viewport_coords ray_coords, viewport_coords coords, const renderable_object& sphere);
     };
 }

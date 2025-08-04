@@ -30,6 +30,7 @@ using namespace raytracer;
 renderable_object objects[] = {
     {
         .position = {0,1,3},
+        .shininess = 500,
         .rgbx = 0xff000000,
         .sphere = {
             .radius = 1.f,
@@ -38,6 +39,7 @@ renderable_object objects[] = {
     },
     {
         .position = {2,0,4},
+        .shininess = 500,
         .rgbx = 0x0000ff00,
         .sphere = {
             .radius = 1.f,
@@ -46,6 +48,7 @@ renderable_object objects[] = {
     },
     {
         .position = {-2,0,4},
+        .shininess = 10,
         .rgbx = 0x00ff0000,
         .sphere = {
             .radius = 1.f,
@@ -54,6 +57,7 @@ renderable_object objects[] = {
     },
     {
         .position = {0,5001,0},
+        .shininess = 1000,
         .rgbx = 0xffff0000,
         .sphere = {
             .radius = 5000.f,
@@ -73,7 +77,7 @@ renderable_object objects[] = {
         .position = {2,1,0},
         .rgbx = 0xffffffff,
         .light = {
-            .intensity = .6f,
+            .intensity = .2f,
             .type = renderable_object::LIGHT_POINT,
         },
         .type = renderable_object::OBJECT_LIGHT
@@ -82,7 +86,7 @@ renderable_object objects[] = {
         .direction = {1,4,4},
         .rgbx = 0xffffffff,
         .light = {
-            .intensity = .2f,
+            .intensity = .6f,
             .type = renderable_object::LIGHT_DIRECTIONAL,
         },
         .type = renderable_object::OBJECT_LIGHT

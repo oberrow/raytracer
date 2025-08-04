@@ -98,7 +98,7 @@ namespace raytracer {
         else
             assert(!"unknown object type");
         color ret = 0;
-        float n = compute_lighting(intersection_coords, normal);;
+        float n = compute_lighting(intersection_coords, normal, -coords, closest_object->shininess);
         color r = std::clamp(((closest_object->rgbx >> 24) & 0xff) * n, 0.f,255.f);
         color g = std::clamp(((closest_object->rgbx >> 16) & 0xff) * n, 0.f,255.f);
         color b = std::clamp(((closest_object->rgbx >> 8) & 0xff) * n, 0.f,255.f);
@@ -123,7 +123,7 @@ namespace raytracer {
         return {t1,t2};
     }
 
-    float renderer::compute_lighting(viewport_coords intersection, glm::vec3 normal)
+    float renderer::compute_lighting(viewport_coords intersection, glm::vec3 normal, glm::vec3 camera_distance, float shininess)
     {
         float n = 0;
         for (auto& light : m_objects)
@@ -143,6 +143,15 @@ namespace raytracer {
                         direction = light->direction;
                     float dot_l = glm::dot(normal, direction);
                     if (dot_l > 0) n += light->light.intensity * dot_l / (glm::length(normal)*glm::length(direction));
+                    
+                    if (shininess != -1)
+                    {
+                        glm::vec3 r = 2.f * normal * glm::dot(normal, direction) - direction;
+                        float r_dot_v = glm::dot(r,camera_distance);
+                        if (r_dot_v > 0)
+                            n += light->light.intensity * pow(r_dot_v / (glm::length(r) * glm::length(camera_distance)), shininess);
+                    }
+
                     break;
                 }
             }
