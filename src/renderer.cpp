@@ -18,8 +18,11 @@
 #include "renderer.hpp"
 
 namespace raytracer {
-    renderer::renderer(int screen_width, int screen_height, plot_pixel_cb cb, void* userdata, color bg_color)
-        : m_screen_height(screen_height),m_screen_width(screen_width),m_plot_pixel(cb),m_userdata(userdata),m_bg_color(bg_color)
+    renderer::renderer(int screen_width, int screen_height, plot_pixel_cb cb, void* userdata, color bg_color, int recurse_limit)
+        : m_screen_height(screen_height), m_screen_width(screen_width),
+          m_plot_pixel(cb), m_userdata(userdata),
+          m_bg_color(bg_color),
+          m_recurse_limit(recurse_limit)
     {
         m_screen_middle.x = screen_width/2;
         m_screen_middle.y = screen_height/2;
@@ -33,6 +36,7 @@ namespace raytracer {
 
     void renderer::render()
     {
+        if (!m_mutated) return;
         canvas_coords i = m_screen_start;
         const float d = 1;
         for (; i.y < m_screen_end.y; i.y++)
@@ -43,17 +47,44 @@ namespace raytracer {
                 coords.x = i.x * (m_viewport_size.x/m_screen_end.x);
                 coords.y = i.y * (m_viewport_size.y/m_screen_end.y);
                 coords.z = d;
+                coords = coords * m_camera_rotation;
 
-                color c = trace_ray(m_camera_position, coords, 1, INFINITY);
+                color c = trace_ray(m_camera_position, coords, 1, INFINITY, m_recurse_limit);
                 m_plot_pixel(m_userdata, conv_canvas_screen(i), c);                
             }
             i.x = m_screen_start.x;
         }
+        m_mutated = false;
     }
     
 #define in_range(v, min, max) (((v) >= (min)) && ((v) < (max)))
 
-    color renderer::trace_ray(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max)
+    bool renderer::ray_intersects_object(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max)
+    {
+        for (auto &object : m_objects)
+        {
+            float t1 = INFINITY, t2 = INFINITY;
+            switch (object->type)
+            {
+                case renderable_object::OBJECT_SPHERE:
+                {
+                    auto p = intersect_ray_sphere(ray_coords, coords, *object);
+                    t1 = p.first;
+                    t2 = p.second;
+                    break;
+                }
+                case renderable_object::OBJECT_LIGHT: continue;
+                default: assert(!"unimplemented object type");
+            }
+            if (in_range(t1, t_min, t_max))
+                return true;
+            if (in_range(t2, t_min, t_max))
+                return true;
+        }
+        return false;
+    }
+
+    color renderer::trace_ray(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max, int recurse_limit)
     {
         float closest_t = INFINITY;
         renderable_object* closest_object = nullptr;
@@ -97,20 +128,23 @@ namespace raytracer {
         }
         else
             assert(!"unknown object type");
-        color ret = 0;
+        color local_color = closest_object->rgbx;
         float n = compute_lighting(intersection_coords, normal, -coords, closest_object->shininess);
-        color r = std::clamp(((closest_object->rgbx >> 24) & 0xff) * n, 0.f,255.f);
-        color g = std::clamp(((closest_object->rgbx >> 16) & 0xff) * n, 0.f,255.f);
-        color b = std::clamp(((closest_object->rgbx >> 8) & 0xff) * n, 0.f,255.f);
-        ret |= (r<<24);
-        ret |= (g<<16);
-        ret |= (b<<8);
-        return ret;
+        local_color = color_multiply(local_color, n);
+        
+        if (recurse_limit <= 0 || closest_object->reflectiveness <= 0)
+            return local_color;
+
+        glm::vec3 reflected_ray = 2.f * normal * glm::dot(normal, -coords) - (-coords);
+        color reflected_color = trace_ray(intersection_coords, reflected_ray, 0.001, INFINITY, recurse_limit - 1);
+        local_color = color_multiply(local_color, (1.f-closest_object->reflectiveness));
+        reflected_color = color_multiply(reflected_color, closest_object->reflectiveness);
+        return local_color + reflected_color;
     }
 
     std::pair<float /* t1 */, float /* t2 */> renderer::intersect_ray_sphere(viewport_coords ray_coords, viewport_coords coords, const renderable_object& sphere)
     {
-        glm::vec3 co = glm::vec3(ray_coords) - sphere.position;
+        glm::vec3 co = ray_coords - sphere.position;
         float a = glm::dot(coords,coords);
         float b = 2.f*glm::dot(co, coords);
         float c = glm::dot(co, co) - sphere.sphere.radius*sphere.sphere.radius;
@@ -137,10 +171,19 @@ namespace raytracer {
                 case renderable_object::LIGHT_DIRECTIONAL:
                 {
                     glm::vec3 direction = {};
+                    float t_max = 0;
                     if (light->light.type == renderable_object::LIGHT_POINT)
+                    {
                         direction = light->position - intersection;
+                        t_max = 1;
+                    }
                     else
+                    {
                         direction = light->direction;
+                        t_max = INFINITY;
+                    }
+                    if (ray_intersects_object(intersection, direction, 0.001, t_max))
+                        continue;
                     float dot_l = glm::dot(normal, direction);
                     if (dot_l > 0) n += light->light.intensity * dot_l / (glm::length(normal)*glm::length(direction));
                     

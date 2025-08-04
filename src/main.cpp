@@ -13,8 +13,11 @@
 
 #include <cassert>
 #include <chrono>
-#include <glm/glm.hpp>
 #include <thread>
+
+#include <glm/geometric.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <string.h>
 #include <stdio.h>
@@ -31,6 +34,7 @@ renderable_object objects[] = {
     {
         .position = {0,1,3},
         .shininess = 500,
+        .reflectiveness = .2f,
         .rgbx = 0xff000000,
         .sphere = {
             .radius = 1.f,
@@ -40,6 +44,7 @@ renderable_object objects[] = {
     {
         .position = {2,0,4},
         .shininess = 500,
+        .reflectiveness = .3f,
         .rgbx = 0x0000ff00,
         .sphere = {
             .radius = 1.f,
@@ -49,6 +54,7 @@ renderable_object objects[] = {
     {
         .position = {-2,0,4},
         .shininess = 10,
+        .reflectiveness = .4f,
         .rgbx = 0x00ff0000,
         .sphere = {
             .radius = 1.f,
@@ -58,6 +64,7 @@ renderable_object objects[] = {
     {
         .position = {0,5001,0},
         .shininess = 1000,
+        .reflectiveness = .5f,
         .rgbx = 0xffff0000,
         .sphere = {
             .radius = 5000.f,
@@ -74,19 +81,19 @@ renderable_object objects[] = {
         .type = renderable_object::OBJECT_LIGHT
     },
     {
-        .position = {2,1,0},
+        .position = {2,-1,0},
         .rgbx = 0xffffffff,
         .light = {
-            .intensity = .2f,
+            .intensity = .6f,
             .type = renderable_object::LIGHT_POINT,
         },
         .type = renderable_object::OBJECT_LIGHT
     },
     {
-        .direction = {1,4,4},
+        .direction = {1,-4,4},
         .rgbx = 0xffffffff,
         .light = {
-            .intensity = .6f,
+            .intensity = .2f,
             .type = renderable_object::LIGHT_DIRECTIONAL,
         },
         .type = renderable_object::OBJECT_LIGHT
@@ -138,7 +145,7 @@ int main()
         if (surface->format->Amask)
             fb8[surface->pitch * at.y + at.x*surface->format->BytesPerPixel + surface->format->Ashift/8] = 0;
         // fb32[(surface->pitch/surface->format->BytesPerPixel)*at.y + at.x] = rgbx;
-    }, surface, 0xffffffff};
+    }, surface, 0, 3};
     // renderable_object sphere = {};
     // sphere.rgbx.value = 0x00ff0000;
     // sphere.where.x = -5;
@@ -160,7 +167,9 @@ int main()
         renderer.append_object(&objects[i]);
 
     bool quit = false;
-    camera_position camera_pos = {};
+    viewport_coords camera_pos = {};
+    glm::mat3x3 camera_rot = glm::rotate(glm::mat4(1), 0.f, glm::vec3(0,0,1));
+    renderer.set_camera_rotation(camera_rot);
     constexpr std::chrono::milliseconds target_fps_duration_ms = std::chrono::milliseconds(1/target_fps*1000);
     do {
         auto start = std::chrono::system_clock::now();
@@ -193,6 +202,7 @@ int main()
                     default: break;
                 }
                 renderer.set_camera_position(camera_pos);
+                renderer.render();
             }
             else if (event.type == SDL_QUIT)
             {
