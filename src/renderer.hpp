@@ -71,6 +71,8 @@ namespace raytracer {
     class renderer {
         public:
             renderer() = delete;
+            renderer(const renderer&) = delete;
+            renderer(renderer&&) = delete;
             renderer(int screen_width, int screen_height, plot_pixel_cb cb, void* userdata, color bg_color, int recurse_limit);
     
             void render();
@@ -86,24 +88,24 @@ namespace raytracer {
             inline void set_mutated() { m_mutated = true; }
 
         private:
-            std::list<renderable_object*> m_objects;
-            viewport_coords m_camera_position;
-            glm::mat3x3 m_camera_rotation;
-            plot_pixel_cb m_plot_pixel;
-            void(*m_flush_buffers_cb)(void* userdata);
-            int m_recurse_limit;
-            int m_screen_width;
-            int m_screen_height;
-            screen_coords m_screen_middle;
-            canvas_coords m_screen_end;
-            canvas_coords m_screen_start;
-            glm::vec2 m_viewport_size;
-            void* m_userdata;
-            color m_bg_color;
+            std::list<renderable_object*> m_objects = {};
+            viewport_coords m_camera_position = {};
+            glm::mat3x3 m_camera_rotation = {};
+            plot_pixel_cb m_plot_pixel = {};
+            void(*m_flush_buffers_cb)(void* userdata) = nullptr;
+            int m_recurse_limit = {};
+            int m_screen_width = {};
+            int m_screen_height = {};
+            screen_coords m_screen_middle = {};
+            canvas_coords m_screen_end = {};
+            canvas_coords m_screen_start = {};
+            glm::vec2 m_viewport_size = {};
+            void* m_userdata = {};
+            color m_bg_color = {};
             bool m_mutated = true;
             mutable bool m_needs_flush = false;
             bool m_workers_die = false;
-            std::list<std::thread*> m_workers;
+            std::list<std::thread*> m_workers = {};
 
         private:
             static void render_worker(const renderer* This, int start_y, size_t nLines);

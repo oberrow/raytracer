@@ -1,10 +1,12 @@
+CC := x86_64-obos-gcc
+CXX := x86_64-obos-g++
 LD := $(CXX)
 
 all: raytracer
 bin:
 	mkdir -p bin
-bin/main.o: src/main.cpp
-	$(CXX) -c -MMD -std=gnu++20 $(CXXFLAGS) src/main.cpp -o bin/main.o
+bin/main.o: src/main-obos.cpp
+	$(CXX) -c -MMD -std=gnu++20 $(CXXFLAGS) src/main-obos.cpp -o bin/main.o
 bin/renderer.o: src/renderer.cpp
 	$(CXX) -c -MMD -std=gnu++20 $(CXXFLAGS) src/renderer.cpp -o bin/renderer.o
 DEPS := $(wildcard bin/*.d)
@@ -12,7 +14,7 @@ ifneq ($(DEPS),)
 include $(DEPS)
 endif
 raytracer: bin bin/main.o bin/renderer.o
-	$(LD) -oraytracer $(LD_FLAGS) bin/main.o bin/renderer.o -lm -lSDL2
+	$(LD) -oraytracer $(LD_FLAGS) bin/main.o bin/renderer.o -lm
 clean:
 	rm -rf bin/
 	rm raytracer

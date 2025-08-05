@@ -42,7 +42,7 @@ namespace raytracer {
 })
     void renderer::render()
     {
-        if (m_needs_flush) {m_flush_buffers_cb(m_userdata);m_needs_flush=0;}
+        if (m_needs_flush && m_flush_buffers_cb) { m_flush_buffers_cb(m_userdata);m_needs_flush=0; }
         if (!m_mutated) return;
         // Start nproc worker threads.
         static const size_t nproc = std::thread::hardware_concurrency()*1.5;
