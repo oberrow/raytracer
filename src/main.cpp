@@ -62,12 +62,12 @@ renderable_object objects[] = {
         .type = renderable_object::OBJECT_SPHERE
     },
     {
-        .position = {0,5001,0},
+        .position = {0,1001,0},
         .shininess = 1000,
         .reflectiveness = .5f,
         .rgbx = 0xffff0000,
         .sphere = {
-            .radius = 5000.f,
+            .radius = 1000.f,
         },
         .type = renderable_object::OBJECT_SPHERE
     },
@@ -90,7 +90,7 @@ renderable_object objects[] = {
         .type = renderable_object::OBJECT_LIGHT
     },
     {
-        .direction = {1,-4,4},
+        .direction = {1,4,4},
         .rgbx = 0xffffffff,
         .light = {
             .intensity = .2f,
@@ -118,20 +118,26 @@ int main()
         psdlerror("SDL_CreateWindow");
         return -1;
     }
-    SDL_Surface* surface = SDL_GetWindowSurface(window);
-    if (!surface)
+    SDL_Surface* surfaces[2] = {SDL_GetWindowSurface(window),0};
+    if (!surfaces[0])
     {
         psdlerror("SDL_GetWindowSurface");
         return -1;
     }
-    uint32_t bpp = surface->pitch/surface->w;
-    for (int y = 0; y < surface->h; y++)
-        memset(((char*)surface->pixels) + y*surface->pitch, 0, surface->w*bpp);
+    surfaces[1] = SDL_CreateRGBSurface(0, surfaces[0]->w, surfaces[0]->h, 32, 0, 0,0,0);
+    if (!surfaces[1])
+    {
+        psdlerror("SDL_CreateRGBSurface");
+        return -1;
+    }
+    uint32_t bpp = surfaces[0]->format->BytesPerPixel;
+    for (int y = 0; y < surfaces[0]->h; y++)
+        memset(((char*)surfaces[0]->pixels) + y*surfaces[0]->pitch, 0, surfaces[0]->w*bpp);
 
-    renderer renderer = {surface->w,surface->h, [](void* userdata, const screen_coords& at, uint32_t rgbx) {
-        SDL_Surface* surface = reinterpret_cast<SDL_Surface*>(userdata);
+    renderer renderer = {surfaces[1]->w,surfaces[1]->h, [](void* userdata, const screen_coords& at, uint32_t rgbx) {
+        SDL_Surface* surface = reinterpret_cast<SDL_Surface**>(userdata)[1];
+        // SDL_Surface* target_surface = reinterpret_cast<SDL_Surface**>(userdata)[0];
         uint8_t* fb8 = (uint8_t*)surface->pixels;
-        uint32_t* fb32 = (uint32_t*)surface->pixels;
         assert(at.x < surface->w);
         assert(at.y < surface->h);
 
@@ -144,25 +150,12 @@ int main()
         fb8[surface->pitch * at.y + at.x*surface->format->BytesPerPixel + surface->format->Bshift/8] = b;
         if (surface->format->Amask)
             fb8[surface->pitch * at.y + at.x*surface->format->BytesPerPixel + surface->format->Ashift/8] = 0;
-        // fb32[(surface->pitch/surface->format->BytesPerPixel)*at.y + at.x] = rgbx;
-    }, surface, 0, 3};
-    // renderable_object sphere = {};
-    // sphere.rgbx.value = 0x00ff0000;
-    // sphere.where.x = -5;
-    // sphere.where.y = 0;
-    // sphere.where.z = 0;
-    // sphere.sphere.radius = 1.0f;
-    // sphere.type = sphere.OBJECT_SPHERE;
-    // renderer.append_object(&sphere);
-    // renderer.set_camera_position({0,0,0,0});
-    // renderable_object sphere2 = {};
-    // sphere2.rgbx.value = 0x00ff0000;
-    // sphere2.where.x = 5;
-    // sphere2.where.y = 0;
-    // sphere2.where.z = 0;
-    // sphere2.sphere.radius = 1.0f;
-    // sphere2.type = sphere.OBJECT_SPHERE;
-    // renderer.append_object(&sphere2);
+    }, surfaces, 0, 3};
+    renderer.set_flush_buffers_cb([](void* userdata){
+        SDL_Surface* surface = reinterpret_cast<SDL_Surface**>(userdata)[1];
+        SDL_Surface* target_surface = reinterpret_cast<SDL_Surface**>(userdata)[0];
+        SDL_BlitSurface(surface, nullptr, target_surface, nullptr);
+    });
     for (int i = 0; i < sizeof(objects)/sizeof(*objects); i++)
         renderer.append_object(&objects[i]);
 
@@ -172,7 +165,7 @@ int main()
     renderer.set_camera_rotation(camera_rot);
     constexpr std::chrono::milliseconds target_fps_duration_ms = std::chrono::milliseconds(1/target_fps*1000);
     do {
-        auto start = std::chrono::system_clock::now();
+        auto start = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
         renderer.render();
 
         SDL_Event event = {};
@@ -210,8 +203,10 @@ int main()
                 break;
             }
         }
-        auto end = std::chrono::system_clock::now();
+        auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
 
+        if ((end - start).count() > 5)
+            printf("frame time = %ld ms\n", (end - start).count());
         SDL_UpdateWindowSurface(window);
         if ((end-start) >= target_fps_duration_ms)
             std::this_thread::sleep_for(target_fps_duration_ms - (end - start));

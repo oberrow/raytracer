@@ -5,6 +5,8 @@
 */
 
 #include <algorithm>
+#include <thread>
+#include <vector>
 #include <cassert>
 #include <cmath>
 #include <glm/common.hpp>
@@ -34,32 +36,64 @@ namespace raytracer {
         m_viewport_size.y = 1;
     }
 
+#define make_thread ({\
+    std::thread* new_thread = new std::thread{render_worker, this, i*nLinesPerThread+m_screen_start.y, nLinesPerThread};\
+    (new_thread);\
+})
     void renderer::render()
     {
+        if (m_needs_flush) {m_flush_buffers_cb(m_userdata);m_needs_flush=0;}
         if (!m_mutated) return;
-        canvas_coords i = m_screen_start;
-        const float d = 1;
-        for (; i.y < m_screen_end.y; i.y++)
+        // Start nproc worker threads.
+        static const size_t nproc = std::thread::hardware_concurrency()*1.5;
+//        static const size_t nproc = 1;
+        size_t nLinesPerThread = m_screen_height / nproc;
+        if (nproc <= 1)
         {
-            for (; i.x < m_screen_end.x; i.x++)
+            render_worker(this, m_screen_start.y, nLinesPerThread);
+            goto end;
+        }
+        m_workers_die = true;
+        for (auto &thr : m_workers)
+        {
+            thr->join();
+            delete thr;
+        }
+        m_workers_die = false;
+        m_workers.clear();
+        for (int i = 0; i < nproc; i++)
+            m_workers.push_back(make_thread);
+        end:
+        m_mutated = false;
+    }
+
+    void renderer::render_worker(const renderer* This, int start_y, size_t nLines)
+    {
+        canvas_coords i = This->m_screen_start;
+        const float d = 1;
+        i.y = start_y;
+        int lines = 0;
+        for (; lines < nLines; lines++ && !This->m_workers_die, i.y++)
+        {
+            for (; i.x < This->m_screen_end.x && !This->m_workers_die; i.x++)
             {
                 viewport_coords coords = {};
-                coords.x = i.x * (m_viewport_size.x/m_screen_end.x);
-                coords.y = i.y * (m_viewport_size.y/m_screen_end.y);
+                coords.x = i.x * (This->m_viewport_size.x/This->m_screen_end.x);
+                coords.y = i.y * (This->m_viewport_size.y/This->m_screen_end.y);
                 coords.z = d;
-                coords = coords * m_camera_rotation;
+                coords = coords * This->m_camera_rotation;
 
-                color c = trace_ray(m_camera_position, coords, 1, INFINITY, m_recurse_limit);
-                m_plot_pixel(m_userdata, conv_canvas_screen(i), c);                
+                color c = This->trace_ray(This->m_camera_position, coords, 1, INFINITY, This->m_recurse_limit);
+                This->m_plot_pixel(This->m_userdata, This->conv_canvas_screen(i), c);                
             }
-            i.x = m_screen_start.x;
+            i.x = This->m_screen_start.x;
         }
-        m_mutated = false;
+        This->m_needs_flush = !This->m_workers_die;
     }
     
 #define in_range(v, min, max) (((v) >= (min)) && ((v) < (max)))
 
-    bool renderer::ray_intersects_object(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max)
+    bool renderer::ray_intersects_object(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max) const
     {
         for (auto &object : m_objects)
         {
@@ -84,7 +118,7 @@ namespace raytracer {
         return false;
     }
 
-    color renderer::trace_ray(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max, int recurse_limit)
+    color renderer::trace_ray(viewport_coords ray_coords, viewport_coords coords, float t_min, float t_max, int recurse_limit) const
     {
         float closest_t = INFINITY;
         renderable_object* closest_object = nullptr;
@@ -142,7 +176,7 @@ namespace raytracer {
         return local_color + reflected_color;
     }
 
-    std::pair<float /* t1 */, float /* t2 */> renderer::intersect_ray_sphere(viewport_coords ray_coords, viewport_coords coords, const renderable_object& sphere)
+    std::pair<float /* t1 */, float /* t2 */> renderer::intersect_ray_sphere(viewport_coords ray_coords, viewport_coords coords, const renderable_object& sphere) const
     {
         glm::vec3 co = ray_coords - sphere.position;
         float a = glm::dot(coords,coords);
@@ -157,7 +191,7 @@ namespace raytracer {
         return {t1,t2};
     }
 
-    float renderer::compute_lighting(viewport_coords intersection, glm::vec3 normal, glm::vec3 camera_distance, float shininess)
+    float renderer::compute_lighting(viewport_coords intersection, glm::vec3 normal, glm::vec3 camera_distance, float shininess) const
     {
         float n = 0;
         for (auto& light : m_objects)
@@ -203,7 +237,7 @@ namespace raytracer {
         return n;
     }
 
-    screen_coords renderer::conv_canvas_screen(const canvas_coords& coords)
+    screen_coords renderer::conv_canvas_screen(const canvas_coords& coords) const
     {
         screen_coords ret = {};
         ret.x = m_screen_middle.x+coords.x;
