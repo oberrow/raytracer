@@ -77,3 +77,4 @@ static raytracer::renderable_object objects[] = {
         .type = raytracer::renderable_object::OBJECT_LIGHT
     },
 };
+static uint32_t s_bg_color = 0xffffffff;

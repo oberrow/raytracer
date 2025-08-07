@@ -81,7 +81,7 @@ int main()
         fb8[surface->pitch * at.y + at.x*surface->format->BytesPerPixel + surface->format->Bshift/8] = b;
         if (surface->format->Amask)
             fb8[surface->pitch * at.y + at.x*surface->format->BytesPerPixel + surface->format->Ashift/8] = 0;
-    }, surfaces, 0, 3};
+    }, surfaces, s_bg_color, 3};
     renderer.set_flush_buffers_cb([](void* userdata){
         SDL_Surface* surface = reinterpret_cast<SDL_Surface**>(userdata)[1];
         SDL_Surface* target_surface = reinterpret_cast<SDL_Surface**>(userdata)[0];

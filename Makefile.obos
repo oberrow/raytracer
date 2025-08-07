@@ -9,12 +9,14 @@ bin/main.o: src/main-obos.cpp
 	$(CXX) -c -MMD -std=gnu++20 $(CXXFLAGS) src/main-obos.cpp -o bin/main.o
 bin/renderer.o: src/renderer.cpp
 	$(CXX) -c -MMD -std=gnu++20 $(CXXFLAGS) src/renderer.cpp -o bin/renderer.o
+bin/obos-x86_64-syscall.o: src/obos-x86_64-syscall.S
+	$(AS) -c src/obos-x86_64-syscall.S -o bin/obos-x86_64-syscall.o
 DEPS := $(wildcard bin/*.d)
 ifneq ($(DEPS),)
 include $(DEPS)
 endif
-raytracer: bin bin/main.o bin/renderer.o
-	$(LD) -oraytracer $(LD_FLAGS) bin/main.o bin/renderer.o -lm
+raytracer: bin bin/main.o bin/renderer.o bin/obos-x86_64-syscall.o
+	$(LD) -oraytracer $(LD_FLAGS) bin/main.o bin/renderer.o bin/obos-x86_64-syscall.o -lm
 clean:
 	rm -rf bin/
 	rm raytracer

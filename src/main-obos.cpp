@@ -24,6 +24,9 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
+#include <obos/syscall.h>
+#include <obos/error.h>
+
 #include "renderer.hpp"
 #include "scene.hpp"
 
@@ -80,7 +83,25 @@ int main()
         return -1;
     }
     fb0.mode = mode;
-    fb0.buff = mmap(NULL, st.st_size, PROT_READ|PROT_WRITE, MAP_SHARED, fb0_fd, 0);
+//    fb0.buff = mmap(NULL, st.st_size, PROT_READ|PROT_WRITE, MAP_SHARED, fb0_fd, 0);
+    struct vma_alloc_userspace_args
+    {
+        uint32_t prot;
+        uint32_t flags;
+        handle file;
+        uintptr_t offset;
+    } mmap_args = {};
+    mmap_args.flags |= (1<<11) /* framebuffer, default is MAP_SHARED */;
+    mmap_args.file = fb0_fd;
+
+    obos_status status = OBOS_STATUS_SUCCESS;
+    fb0.buff = (void*)syscall5(Sys_VirtualMemoryAlloc, HANDLE_CURRENT, nullptr, st.st_size, &mmap_args, &status);
+    if (obos_is_error(status))
+    {
+        fprintf(stderr, "Sys_VirtualMemoryAlloc returned obos_status %d\n", status);
+        return -1;
+    }
+
     switch (fb0.mode.format) {
         case OBOS_FB_FORMAT_RGB888:
             fb0.red_shift = 16;
@@ -128,7 +149,7 @@ int main()
             fb->buff8[fb->mode.pitch * at.y + at.x*(fb->mode.bpp/8) + fb->blue_shift/8] = b;
             if (fb->has_x_shift)
                 fb->buff8[fb->mode.pitch * at.y + at.x*(fb->mode.bpp/8) + fb->x_shift/8] = 0;
-        }, &fb0, 0, 3
+        }, &fb0, s_bg_color, 3
     };
     for (int i = 0; i < sizeof(objects)/sizeof(*objects); i++)
         renderer.append_object(&objects[i]);
